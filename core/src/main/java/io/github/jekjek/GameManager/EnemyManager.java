@@ -18,9 +18,10 @@ public class EnemyManager {
         for (int slot = 0; slot < enemyCount; slot++) {
             boolean isSpecialEnemy = specialBudget > 0 && random.nextDouble() < specialChance(levelNumber, waveNumber);
 
-            double baseHealth = isSpecialEnemy ? 65 : 45;
-            double baseArmor = isSpecialEnemy ? 22 : 14;
-            double baseAttack = isSpecialEnemy ? 16 : 10;
+            // Ubah jadi (lebih kecil):
+            double baseHealth = isSpecialEnemy ? 40 : 30;
+            double baseArmor = isSpecialEnemy ? 12 : 8;
+            double baseAttack = isSpecialEnemy ? 10 : 7;
 
             double levelScale = 1.0 + ((levelNumber - 1) * 0.08) + ((waveNumber - 1) * 0.05);
             double health = Math.round(baseHealth * difficulty.getHealthMultiplier() * levelScale);

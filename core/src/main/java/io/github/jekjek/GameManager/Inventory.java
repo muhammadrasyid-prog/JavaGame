@@ -7,6 +7,9 @@ import java.util.Map;
 
 public class Inventory {
     private String profileName;
+    private int totalXp;
+    private boolean justLeveledUp = false;
+    private int levelUpCount = 0;
     private int xpCount;
     private int levelCount;
     private int moneyCount;
@@ -15,6 +18,12 @@ public class Inventory {
     private double armorBonus;
     private double attackBonus;
     private final Map<Skill, Integer> skillCharges = new HashMap<>();
+
+    public static final int MAX_LEVEL = 10;
+
+    private static final int[] XP_THRESHOLDS = {
+        30, 60, 100, 150, 210, 280, 360, 450, 999, 999
+    };
 
     public Inventory(String profileName, int xpCount, int levelCount, int moneyCount, int skillPoint) {
         this.profileName = profileName;
@@ -35,8 +44,31 @@ public class Inventory {
         return xpCount;
     }
 
-    public void addXpCount(int xpCount) {
-        this.xpCount = Math.max(0, this.xpCount + xpCount);
+    public boolean addXpAndCheckLevelUp(int xp) {
+        boolean leveledUp = false;
+        justLeveledUp = false;
+
+        xpCount += xp;
+        totalXp += xp;
+
+        while (!isMaxLevel() && xpCount >= xpThresholdForCurrentLevel()) {
+            xpCount -= xpThresholdForCurrentLevel();
+            levelCount++;
+            skillPoint++;
+            applyLevelUpBonus();
+
+            leveledUp = true;
+            justLeveledUp = true;
+            levelUpCount++;
+        }
+
+        return leveledUp;
+    }
+
+    private void applyLevelUpBonus() {
+        healthBonus += 10;
+        armorBonus += 3;
+        attackBonus += 2;
     }
 
     public int getLevelCount() {
@@ -72,8 +104,37 @@ public class Inventory {
     }
 
     public void applyReward(int xpReward, int moneyReward) {
-        addXpCount(xpReward);
+        addXpAndCheckLevelUp(xpReward);
         addMoneyCount(moneyReward);
+    }
+
+    public int xpThresholdForCurrentLevel() {
+        int index = Math.min(levelCount - 1, XP_THRESHOLDS.length - 1);
+        return XP_THRESHOLDS[index];
+    }
+
+    public float xpProgress() {
+        return (float) xpCount / xpThresholdForCurrentLevel();
+    }
+
+    public boolean isMaxLevel() {
+        return levelCount >= MAX_LEVEL;
+    }
+
+    public boolean isJustLeveledUp() {
+        return justLeveledUp;
+    }
+
+    public void clearLevelUpFlag() {
+        justLeveledUp = false;
+    }
+
+    public int getLevelUpCount() {
+        return levelUpCount;
+    }
+
+    public int getTotalXp() {
+        return totalXp;
     }
 
     public double getHealthBonus() {
