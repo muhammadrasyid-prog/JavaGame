@@ -108,12 +108,12 @@ public class MenuScreen implements Screen {
         Table difficultyTable = new Table();
 
 // Warna button sesuai difficulty
-        btnEasy = createDifficultyButton("EASY", new Color(0.2f, 0.6f, 0.2f, 1f));
-        btnNormal = createDifficultyButton("NORMAL", new Color(0.6f, 0.6f, 0.2f, 1f));
-        btnHard = createDifficultyButton("HARD", new Color(0.6f, 0.2f, 0.2f, 1f));
+        btnEasy = createDifficultyButton("EASY");
+        btnNormal = createDifficultyButton("NORMAL");
+        btnHard = createDifficultyButton("HARD");
 
 // Set default Normal sebagai terpilih
-        btnNormal.setColor(0.8f, 0.8f, 0.3f, 1f);
+        btnNormal.getLabel().setColor(0.8f, 0.8f, 0.3f, 1f);
 
         difficultyTable.add(btnEasy).width(100f).height(40f).pad(5f);
         difficultyTable.add(btnNormal).width(100f).height(40f).pad(5f);
@@ -123,10 +123,9 @@ public class MenuScreen implements Screen {
 
 // Tombol Start Battle (pindahkan/ubah yang sudah ada)
 // Hapus atau comment tombol Start Battle yang lama, lalu tambahkan yang baru:
-        root.add(createDifficultyButton("START BATTLE", new Color(0.2f, 0.3f, 0.6f, 1f)))
+        root.add(makeBtn("START BATTLE", this::startBattleWithDifficulty))
             .size(BTN_W, BTN_H).padBottom(BTN_GAP).row();
 
-//        root.add(makeBtn("Start Battle", this::onStart)).size(BTN_W, BTN_H).padBottom(BTN_GAP).row();
         root.add(makeBtn("Inventory",    this::onInventory)).size(BTN_W, BTN_H).padBottom(BTN_GAP).row();
         root.add(makeBtn("Credits",      this::onCredits)).size(BTN_W, BTN_H).padBottom(BTN_GAP).row();
         root.add(makeBtn("Exit",         () -> Gdx.app.exit())).size(BTN_W, BTN_H).row();
@@ -165,17 +164,8 @@ public class MenuScreen implements Screen {
         return btn;
     }
 
-    private TextButton createDifficultyButton(String text, Color bgColor) {
-        Pixmap pixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
-        pixmap.setColor(bgColor);
-        pixmap.fill();
-        Texture texture = new Texture(pixmap);
-        pixmap.dispose();
-
+    private TextButton createDifficultyButton(String text) {
         TextButton.TextButtonStyle style = new TextButton.TextButtonStyle();
-        style.up = new TextureRegionDrawable(new TextureRegion(texture));
-        style.down = new TextureRegionDrawable(new TextureRegion(texture));
-        style.over = new TextureRegionDrawable(new TextureRegion(texture));
         style.font = fontBtn;
         style.fontColor = Color.WHITE;
 
@@ -188,7 +178,7 @@ public class MenuScreen implements Screen {
                 public void clicked(InputEvent event, float x, float y) {
                     selectedDifficulty = "Easy";
                     resetDifficultyButtons();
-                    button.setColor(0.8f, 0.8f, 0.3f, 1f);
+                    button.getLabel().setColor(0.8f, 0.8f, 0.3f, 1f);
                     addLog("Difficulty set to EASY");
                 }
             });
@@ -198,7 +188,7 @@ public class MenuScreen implements Screen {
                 public void clicked(InputEvent event, float x, float y) {
                     selectedDifficulty = "Normal";
                     resetDifficultyButtons();
-                    button.setColor(0.8f, 0.8f, 0.3f, 1f);
+                    button.getLabel().setColor(0.8f, 0.8f, 0.3f, 1f);
                     addLog("Difficulty set to NORMAL");
                 }
             });
@@ -208,26 +198,19 @@ public class MenuScreen implements Screen {
                 public void clicked(InputEvent event, float x, float y) {
                     selectedDifficulty = "Hard";
                     resetDifficultyButtons();
-                    button.setColor(0.8f, 0.8f, 0.3f, 1f);
+                    button.getLabel().setColor(0.8f, 0.8f, 0.3f, 1f);
                     addLog("Difficulty set to HARD");
                 }
             });
-        } else if (text.equals("START BATTLE")) {
-            button.addListener(new ClickListener() {
-                @Override
-                public void clicked(InputEvent event, float x, float y) {
-                    startBattleWithDifficulty();
-                }
-            });
         }
-
+        // Removing the START BATTLE condition from here as it's now a makeBtn
         return button;
     }
 
     private void resetDifficultyButtons() {
-        btnEasy.setColor(0.2f, 0.6f, 0.2f, 1f);
-        btnNormal.setColor(0.6f, 0.6f, 0.2f, 1f);
-        btnHard.setColor(0.6f, 0.2f, 0.2f, 1f);
+        btnEasy.getLabel().setColor(Color.WHITE);
+        btnNormal.getLabel().setColor(Color.WHITE);
+        btnHard.getLabel().setColor(Color.WHITE);
     }
 
     private void addLog(String message) {
@@ -236,11 +219,9 @@ public class MenuScreen implements Screen {
     }
 
     private void startBattleWithDifficulty() {
-        // Simpan difficulty ke variable global atau langsung kirim ke BattleScreen
-        // Kita akan modifikasi constructor BattleScreen nanti
         stage.addAction(Actions.sequence(
             Actions.fadeOut(0.3f),
-            Actions.run(() -> game.setScreen(new BattleScreen(game, selectedDifficulty)))
+            Actions.run(() -> game.setScreen(new GameScreen(game, selectedDifficulty, 1, 100f)))
         ));
     }
 
@@ -307,11 +288,10 @@ public class MenuScreen implements Screen {
 
     // ── Aksi tombol ───────────────────────────────────────────────────────────
     private void onStart() {
-        stage.addAction(Actions.sequence(
-            Actions.fadeOut(0.3f),
-            Actions.run(() -> game.setScreen(new BattleScreen(game, selectedDifficulty)))
-        ));
+        startBattleWithDifficulty();
     }
+    
+
 
     private void onInventory() {
         String body = String.format(
@@ -400,10 +380,11 @@ public class MenuScreen implements Screen {
     }
 
     private void drawBtnBgInActor(Actor actor) {
+        if (!actor.isVisible()) return;
         if (actor instanceof Table t) { for (Actor c : t.getChildren()) drawBtnBgInActor(c); }
         if (!(actor instanceof TextButton btn)) return;
-        if (!btn.isVisible()) return;
-        float bx = btn.getX(), by = btn.getY(), bw = btn.getWidth(), bh = btn.getHeight();
+        com.badlogic.gdx.math.Vector2 pos = btn.localToStageCoordinates(new com.badlogic.gdx.math.Vector2(0, 0));
+        float bx = pos.x, by = pos.y, bw = btn.getWidth(), bh = btn.getHeight();
         float r, g, b;
         if      (btn.isPressed()) { r=0.07f; g=0.12f; b=0.30f; }
         else if (btn.isOver())    { r=0.20f; g=0.38f; b=0.76f; }
