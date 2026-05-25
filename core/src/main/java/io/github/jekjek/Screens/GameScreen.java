@@ -115,11 +115,18 @@ public class GameScreen implements Screen {
 
         // bulletTexture and bullets are removed
         
-        enemyTex = new Texture("default_enemy.png");
-        TextureRegion[][] enemyTmp = TextureRegion.split(enemyTex, frameWidth, frameHeight);
-        enemyAnim = new Animation<>(0.15f, 
-            enemyTmp[0][0], enemyTmp[0][1], enemyTmp[0][2], enemyTmp[0][3]
-        );
+        enemyTex = new Texture("Enemy/run_enemy.png");
+        TextureRegion[][] enemyTmp = TextureRegion.split(enemyTex, 146, 85);
+        TextureRegion[] enemyFrames = new TextureRegion[17];
+        int enemyFrameIndex = 0;
+        for (int r = 0; r < 5; r++) {
+            for (int c = 0; c < 4; c++) {
+                if (enemyFrameIndex < 17) {
+                    enemyFrames[enemyFrameIndex++] = enemyTmp[r][c];
+                }
+            }
+        }
+        enemyAnim = new Animation<>(0.08f, enemyFrames);
         enemyAnim.setPlayMode(Animation.PlayMode.LOOP);
 
         currentAnim = idleRightAnim;
@@ -197,7 +204,7 @@ public class GameScreen implements Screen {
             // Collision check — trigger encounter animation then switch screen
             float eSX = PLAYER_SCREEN_X + (encounterX - worldX);
             TextureRegion ef  = enemyAnim.getKeyFrame(stateTime);
-            float ew = ef.getRegionWidth() / 4f, eh = ef.getRegionHeight() / 4f;
+            float ew = ef.getRegionWidth() * 1.3f, eh = ef.getRegionHeight() * 1.3f;
             playerRect.set(drawX, y, drawWidth, drawHeight);
             encounterRect.set(eSX, 100, ew, eh);
 
@@ -229,7 +236,7 @@ public class GameScreen implements Screen {
         TextureRegion enemyFrame = enemyAnim.getKeyFrame(stateTime);
         float eScreenX = PLAYER_SCREEN_X + (encounterX - worldX);
         game.batch.draw(enemyFrame, eScreenX, 100,
-            enemyFrame.getRegionWidth() / 4f, enemyFrame.getRegionHeight() / 4f);
+            enemyFrame.getRegionWidth() * 1.3f, enemyFrame.getRegionHeight() * 1.3f);
 
         // MC — selalu di PLAYER_SCREEN_X (dengan flip logic dan squash/stretch)
         if (playerFrame.isFlipX() == facingRight) {
