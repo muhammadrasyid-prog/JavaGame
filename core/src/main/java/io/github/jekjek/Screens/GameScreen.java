@@ -23,7 +23,6 @@ public class GameScreen implements Screen {
 
     Texture idleTex;
     Texture runTex;
-    Texture bulletTexture;
     Texture enemyTex;
     Texture bgTex;
 
@@ -33,9 +32,14 @@ public class GameScreen implements Screen {
     Animation<TextureRegion> runRightAnim;
     Animation<TextureRegion> enemyAnim;
 
-    Array<Bullet> bullets;
-
     float stateTime = 0f;
+
+    // Physics variables for MC jumping and controls
+    float ySpeed = 0f;
+    static final float GRAVITY = 1000f; // pixel/s^2
+    static final float JUMP_FORCE = 550f; // Kecepatan awal melompat
+    static final float GROUND_Y = 100f;
+    boolean isGrounded = true;
 
     com.badlogic.gdx.graphics.OrthographicCamera camera;
     StretchViewport viewport;
@@ -109,8 +113,7 @@ public class GameScreen implements Screen {
         );
         runRightAnim.setPlayMode(Animation.PlayMode.LOOP);
 
-        bulletTexture = new Texture("bullet.png");
-        bullets = new Array<>();
+        // bulletTexture and bullets are removed
         
         enemyTex = new Texture("default_enemy.png");
         TextureRegion[][] enemyTmp = TextureRegion.split(enemyTex, frameWidth, frameHeight);
@@ -129,33 +132,73 @@ public class GameScreen implements Screen {
 
     @Override
     public void render(float delta) {
+        boolean crouchPressed = isGrounded && (Gdx.input.isKeyPressed(Input.Keys.S) || Gdx.input.isKeyPressed(Input.Keys.DOWN));
+        boolean isCrouching = isGrounded && crouchPressed;
+
+        // Calculate visual dimensions and coordinates for MC
+        TextureRegion playerFrame = currentAnim.getKeyFrame(stateTime);
+        float dw = playerFrame.getRegionWidth() / 4f;
+        float dh = playerFrame.getRegionHeight() / 4f;
+
+        float drawWidth = dw;
+        float drawHeight = dh;
+        float drawX = PLAYER_SCREEN_X;
+
+        if (isCrouching) {
+            drawWidth = dw * 1.15f;
+            drawHeight = dh * 0.55f;
+            drawX = PLAYER_SCREEN_X - (drawWidth - dw) / 2f;
+        }
 
         // ═══ GAME LOGIC (diblokir saat transisi sedang berjalan) ═══════════
         if (!isTransitioning) {
-            boolean moving = Gdx.input.isKeyPressed(Input.Keys.D);
+            boolean moveRight = Gdx.input.isKeyPressed(Input.Keys.D) || Gdx.input.isKeyPressed(Input.Keys.RIGHT);
+            boolean moveLeft = Gdx.input.isKeyPressed(Input.Keys.A) || Gdx.input.isKeyPressed(Input.Keys.LEFT);
+            boolean moving = false;
 
-            // Movement — worldX naik, MC tetap di layar
-            if (moving) worldX += 200f * delta;
+            if (!isCrouching) {
+                if (moveRight && !moveLeft) {
+                    worldX += 200f * delta;
+                    facingRight = true;
+                    moving = true;
+                } else if (moveLeft && !moveRight) {
+                    worldX -= 200f * delta;
+                    if (worldX < 0f) worldX = 0f;
+                    facingRight = false;
+                    moving = true;
+                }
+            }
 
             // State → Anim
             Animation<TextureRegion> nextAnim = moving ? runRightAnim : idleRightAnim;
             if (currentAnim != nextAnim) { stateTime = 0; currentAnim = nextAnim; }
 
-            // Shoot
-            if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE))
-                bullets.add(new Bullet(bulletTexture, PLAYER_SCREEN_X, y, true));
-            for (int i = bullets.size - 1; i >= 0; i--) {
-                Bullet b = bullets.get(i); b.update(delta);
-                if (!b.isActive()) bullets.removeIndex(i);
+            // Jump
+            boolean jumpPressed = Gdx.input.isKeyJustPressed(Input.Keys.W) 
+                || Gdx.input.isKeyJustPressed(Input.Keys.UP)
+                || Gdx.input.isKeyJustPressed(Input.Keys.SPACE);
+
+            if (jumpPressed && isGrounded && !isCrouching) {
+                ySpeed = JUMP_FORCE;
+                isGrounded = false;
+            }
+
+            // Physics gravity
+            if (!isGrounded) {
+                ySpeed -= GRAVITY * delta;
+                y += ySpeed * delta;
+                if (y <= GROUND_Y) {
+                    y = GROUND_Y;
+                    ySpeed = 0f;
+                    isGrounded = true;
+                }
             }
 
             // Collision check — trigger encounter animation then switch screen
             float eSX = PLAYER_SCREEN_X + (encounterX - worldX);
-            TextureRegion fr  = currentAnim.getKeyFrame(stateTime);
-            float dw = fr.getRegionWidth() / 4f, dh = fr.getRegionHeight() / 4f;
             TextureRegion ef  = enemyAnim.getKeyFrame(stateTime);
             float ew = ef.getRegionWidth() / 4f, eh = ef.getRegionHeight() / 4f;
-            playerRect.set(PLAYER_SCREEN_X, y, dw, dh);
+            playerRect.set(drawX, y, drawWidth, drawHeight);
             encounterRect.set(eSX, 100, ew, eh);
 
             if (playerRect.overlaps(encounterRect)) {
@@ -188,13 +231,11 @@ public class GameScreen implements Screen {
         game.batch.draw(enemyFrame, eScreenX, 100,
             enemyFrame.getRegionWidth() / 4f, enemyFrame.getRegionHeight() / 4f);
 
-        // MC — selalu di PLAYER_SCREEN_X
-        TextureRegion playerFrame = currentAnim.getKeyFrame(stateTime);
-        game.batch.draw(playerFrame, PLAYER_SCREEN_X, y,
-            playerFrame.getRegionWidth() / 4f, playerFrame.getRegionHeight() / 4f);
-
-        // Bullets
-        for (Bullet b : bullets) b.draw(game.batch);
+        // MC — selalu di PLAYER_SCREEN_X (dengan flip logic dan squash/stretch)
+        if (playerFrame.isFlipX() == facingRight) {
+            playerFrame.flip(true, false);
+        }
+        game.batch.draw(playerFrame, drawX, y, drawWidth, drawHeight);
 
         // HUD
         font.draw(game.batch,
@@ -213,7 +254,6 @@ public class GameScreen implements Screen {
         idleTex.dispose();
         runTex.dispose();
         bgTex.dispose();
-        bulletTexture.dispose();
         if (enemyTex != null) enemyTex.dispose();
         font.dispose();
         if (fontLarge != null) fontLarge.dispose();
