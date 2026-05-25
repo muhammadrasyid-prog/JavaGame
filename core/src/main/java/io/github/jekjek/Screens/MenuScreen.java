@@ -11,17 +11,17 @@ import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.scenes.scene2d.utils.*;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.ScreenUtils;
-import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.badlogic.gdx.utils.viewport.StretchViewport;
 import io.github.jekjek.Main;
 
 public class MenuScreen implements Screen {
 
     private static final float W = 800f, H = 480f;
-    private static final float BTN_W = 270f, BTN_H = 52f, BTN_GAP = 14f;
+    private static final float BTN_W = 260f, BTN_H = 40f, BTN_GAP = 8f;
 
     private final Main game;
     private Stage stage;
-    private FitViewport viewport;
+    private StretchViewport viewport;
     private SpriteBatch batch;
     private ShapeRenderer shape;
 
@@ -37,6 +37,7 @@ public class MenuScreen implements Screen {
     private Label overlayTitle, overlayBody;
     private String selectedDifficulty = "Normal";  // Default: Normal
     private TextButton btnEasy, btnNormal, btnHard;
+    private TransitionOverlay transition;
 
     public MenuScreen(Main game) {
         this.game = game;
@@ -44,10 +45,11 @@ public class MenuScreen implements Screen {
 
     @Override
     public void show() {
-        batch    = new SpriteBatch();
-        shape    = new ShapeRenderer();
-        viewport = new FitViewport(W, H);
-        stage    = new Stage(viewport, batch);
+        batch      = new SpriteBatch();
+        shape      = new ShapeRenderer();
+        viewport   = new StretchViewport(W, H);
+        stage      = new Stage(viewport, batch);
+        transition = new TransitionOverlay();
         Gdx.input.setInputProcessor(stage);
         initStars();
         buildFonts();
@@ -81,16 +83,16 @@ public class MenuScreen implements Screen {
 
         Table root = new Table();
         root.setFillParent(true);
-        root.pad(20f);
+        root.pad(12f);
         stage.addActor(root);
 
         Label title = new Label("JOGJA EXPERIENCE", new Label.LabelStyle(fontTitle, fontTitle.getColor()));
         title.setAlignment(Align.center);
-        root.add(title).expandX().padBottom(2f).row();
+        root.add(title).expandX().padBottom(1f).row();
 
         Label sub = new Label("Turn-Based Adventure", new Label.LabelStyle(fontSub, fontSub.getColor()));
         sub.setAlignment(Align.center);
-        root.add(sub).expandX().padBottom(14f).row();
+        root.add(sub).expandX().padBottom(8f).row();
 
         // Info score & level dari inventory nyata
         String infoText = "Score: " + game.totalScore
@@ -99,11 +101,11 @@ public class MenuScreen implements Screen {
             + " / " + game.inventory.xpThresholdForCurrentLevel();
         Label infoLabel = new Label(infoText, new Label.LabelStyle(fontHint, new Color(0.6f, 1f, 0.7f, 1f)));
         infoLabel.setAlignment(Align.center);
-        root.add(infoLabel).expandX().padBottom(22f).row();
+        root.add(infoLabel).expandX().padBottom(10f).row();
 
         // Difficulty selector section
         root.add(new Label("Select Difficulty:", new Label.LabelStyle(fontSub, Color.WHITE)))
-            .padTop(10f).padBottom(5f).row();
+            .padTop(2f).padBottom(2f).row();
 
         Table difficultyTable = new Table();
 
@@ -115,11 +117,11 @@ public class MenuScreen implements Screen {
 // Set default Normal sebagai terpilih
         btnNormal.getLabel().setColor(0.8f, 0.8f, 0.3f, 1f);
 
-        difficultyTable.add(btnEasy).width(100f).height(40f).pad(5f);
-        difficultyTable.add(btnNormal).width(100f).height(40f).pad(5f);
-        difficultyTable.add(btnHard).width(100f).height(40f).pad(5f);
+        difficultyTable.add(btnEasy).width(100f).height(32f).pad(3f);
+        difficultyTable.add(btnNormal).width(100f).height(32f).pad(3f);
+        difficultyTable.add(btnHard).width(100f).height(32f).pad(3f);
 
-        root.add(difficultyTable).padBottom(15f).row();
+        root.add(difficultyTable).padBottom(12f).row();
 
 // Tombol Start Battle (pindahkan/ubah yang sudah ada)
 // Hapus atau comment tombol Start Battle yang lama, lalu tambahkan yang baru:
@@ -127,13 +129,14 @@ public class MenuScreen implements Screen {
             .size(BTN_W, BTN_H).padBottom(BTN_GAP).row();
 
         root.add(makeBtn("Inventory",    this::onInventory)).size(BTN_W, BTN_H).padBottom(BTN_GAP).row();
+        root.add(makeBtn("Shop",         this::onShop)).size(BTN_W, BTN_H).padBottom(BTN_GAP).row();
         root.add(makeBtn("Credits",      this::onCredits)).size(BTN_W, BTN_H).padBottom(BTN_GAP).row();
         root.add(makeBtn("Exit",         () -> Gdx.app.exit())).size(BTN_W, BTN_H).row();
 
         Label hint = new Label("v1.0  |  Team Jekjek  |  libGDX 1.14",
             new Label.LabelStyle(fontHint, fontHint.getColor()));
         hint.setAlignment(Align.center);
-        root.add(hint).expandX().padTop(20f);
+        root.add(hint).expandX().padTop(10f);
 
         buildOverlay();
 
@@ -219,10 +222,13 @@ public class MenuScreen implements Screen {
     }
 
     private void startBattleWithDifficulty() {
-        stage.addAction(Actions.sequence(
-            Actions.fadeOut(0.3f),
-            Actions.run(() -> game.setScreen(new GameScreen(game, selectedDifficulty, 1, 100f)))
-        ));
+        // Tampilkan animasi transisi, baru pindah screen setelah selesai
+        String diff = selectedDifficulty.toUpperCase();
+        String sub  = "Difficulty: " + selectedDifficulty + "  |  Bersiap!";
+        transition.show(stage, fontTitle, fontSub,
+            "PETUALANGAN DIMULAI", sub,
+            new Color(1f, 0.88f, 0.25f, 1f), 1.2f,
+            () -> game.setScreen(new GameScreen(game, selectedDifficulty, 1, 100f)));
     }
 
     private void buildOverlay() {
@@ -292,6 +298,10 @@ public class MenuScreen implements Screen {
     }
     
 
+
+    private void onShop() {
+        game.setScreen(new ShopScreen(game, () -> game.setScreen(new MenuScreen(game))));
+    }
 
     private void onInventory() {
         String body = String.format(
@@ -429,6 +439,7 @@ public class MenuScreen implements Screen {
         stage.dispose(); batch.dispose(); shape.dispose();
         fontTitle.dispose(); fontSub.dispose(); fontBtn.dispose();
         fontHint.dispose(); fontBody.dispose();
+        if (transition != null) transition.dispose();
     }
     @Override public void pause() {} @Override public void resume() {} @Override public void hide() {}
 }

@@ -11,14 +11,15 @@ public class EnemyManager {
 
     public List<Enemy> generateWave(Difficulty difficulty, int levelNumber, int waveNumber) {
         List<Enemy> enemies = new ArrayList<>();
-        // Scale enemy count
-        int baseCount = difficulty.getEnemyCount();
-        int additionalByLevel = Math.min(2, (levelNumber - 1) / 2);
-        int additionalByWave = waveNumber > 2 ? 1 : 0;
-        int enemyCount = Math.max(1, baseCount + additionalByLevel + additionalByWave);
-
-        // Cap enemies to 5 max
-        enemyCount = Math.min(5, enemyCount);
+        int enemyCount = 3;
+        String diffName = difficulty.getNama();
+        if ("Easy".equalsIgnoreCase(diffName)) {
+            enemyCount = 2;
+        } else if ("Hard".equalsIgnoreCase(diffName)) {
+            enemyCount = (waveNumber >= 3) ? 5 : 4;
+        } else { // Normal
+            enemyCount = (waveNumber >= 3) ? 4 : 3;
+        }
 
         for (int i = 0; i < enemyCount; i++) {
             EnemyType typeToSpawn = determineEnemyType(waveNumber, levelNumber, i);

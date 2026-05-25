@@ -9,6 +9,7 @@ public abstract class SpecialEnemy extends Enemy implements SkillCaster {
 
     public abstract boolean shouldUseSkill(List<Enemy> allyTeam);
 
+    @Override
     public abstract void executeSkill(List<Enemy> allyTeam);
 
     public abstract void decrementSkillCooldown();

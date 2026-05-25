@@ -11,6 +11,7 @@ public class EnemySprite {
     private Texture deadTexture;
 
     private float x, y;
+    public float lungeOffset = 0f; // Offset horizontal untuk visual lunge saat menyerang
     private float stateTime = 0f;
     private float stateDuration = 0f; // berapa lama state ini bertahan
     private EnemyState currentState = EnemyState.IDLE;
@@ -32,6 +33,13 @@ public class EnemySprite {
             attackTexture = new Texture(attackFile);
             hurtTexture   = new Texture(hurtFile);
             deadTexture   = new Texture(deadFile);
+            
+            // Set pixel-art Nearest scaling filter to prevent blurriness
+            idleTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+            attackTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+            hurtTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+            deadTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+            
             System.out.println("[EnemySprite] Loaded: " + idleFile);
         } catch (Exception e) {
             System.out.println("[EnemySprite] Failed to load textures: " + e.getMessage());
@@ -102,7 +110,36 @@ public class EnemySprite {
             case DEAD:   currentTexture = deadTexture;   break;
             default:     currentTexture = idleTexture;   break;
         }
-        batch.draw(currentTexture, x, y, 64, 64);
+        
+        if (currentTexture == null) return;
+        
+        // Cek apakah texture ini adalah spritesheet (lebar >= 768)
+        if (currentTexture.getWidth() >= 768) {
+            int frameWidth = 768;
+            int frameHeight = 448;
+            int numFrames = currentTexture.getWidth() / frameWidth;
+            
+            // Hitung index frame berdasarkan stateTime
+            float frameDuration = 0.15f;
+            int frameIndex = (int) (stateTime / frameDuration) % numFrames;
+            
+            // Jika state DEAD, kita kunci ke frame terakhir (animasi mati selesai)
+            if (currentState == EnemyState.DEAD) {
+                frameIndex = numFrames - 1;
+            }
+            
+            // Ambil region dari spritesheet
+            com.badlogic.gdx.graphics.g2d.TextureRegion region = new com.badlogic.gdx.graphics.g2d.TextureRegion(
+                currentTexture, frameIndex * frameWidth, 0, frameWidth, frameHeight
+            );
+            
+            // Gambar musuh dengan ukuran yang diperbesar 25% (240 x 140 px) agar lebih proporsional
+            // x dan y disesuaikan agar berdiri di permukaan tanah secara pas, ditambah lungeOffset
+            batch.draw(region, x - 80f + lungeOffset, y - 30f, 240f, 140f);
+        } else {
+            // Jika bukan spritesheet, gambar biasa
+            batch.draw(currentTexture, x + lungeOffset, y, 64f, 64f);
+        }
     }
 
     public EnemyState getState() { return currentState; }

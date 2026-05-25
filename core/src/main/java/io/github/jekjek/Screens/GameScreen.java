@@ -3,13 +3,16 @@ package io.github.jekjek.Screens;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Animation;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ScreenUtils;
+import com.badlogic.gdx.utils.viewport.StretchViewport;
 import io.github.jekjek.Entity.Player;
 import io.github.jekjek.Main;
 
@@ -35,41 +38,57 @@ public class GameScreen implements Screen {
     float stateTime = 0f;
 
     com.badlogic.gdx.graphics.OrthographicCamera camera;
-    com.badlogic.gdx.utils.viewport.Viewport viewport;
+    StretchViewport viewport;
+    Stage overlayStage;           // stage khusus untuk TransitionOverlay
+    TransitionOverlay transition;
+    BitmapFont fontLarge, fontSmall;
 
     // Dimensions will be dynamically calculated
 
-    float x = 100, y = 100;
+    // worldX = seberapa jauh MC sudah berjalan di "dunia"
+    // MC selalu digambar di posisi layar tetap (PLAYER_SCREEN_X)
+    float worldX = 0f;
+    float y = 100f;
     boolean facingRight = true;
 
+    // Posisi MC di layar (tetap, tidak bergerak)
+    private static final float PLAYER_SCREEN_X = 180f;
+    // Jarak encounter diukur dalam koordinat dunia
+    private static final float ENCOUNTER_WORLD_DIST = 600f;
+
     String difficulty;
-    int currentWave;
+    public int currentWave;
     int maxWaves;
-    float encounterX;
+    public float encounterX;       // koordinat dunia tempat musuh spawn
     com.badlogic.gdx.math.Rectangle playerRect;
     com.badlogic.gdx.math.Rectangle encounterRect;
-    boolean isTransitioning = false;
+    public boolean isTransitioning = false;
 
     public GameScreen(Main game, String difficulty, int currentWave, float startX) {
         this.game = game;
         this.font = new BitmapFont();
         this.difficulty = difficulty;
         this.currentWave = currentWave;
-        this.x = startX;
-        
+        this.worldX = startX;
+
         if (difficulty.equals("Easy")) maxWaves = 2;
         else if (difficulty.equals("Normal")) maxWaves = 3;
         else maxWaves = 4;
-        
-        this.encounterX = startX + 600f;
-        this.playerRect = new com.badlogic.gdx.math.Rectangle();
+
+        this.encounterX = startX + ENCOUNTER_WORLD_DIST;
+        this.playerRect  = new com.badlogic.gdx.math.Rectangle();
         this.encounterRect = new com.badlogic.gdx.math.Rectangle();
     }
 
     @Override
     public void show() {
-        camera = new com.badlogic.gdx.graphics.OrthographicCamera();
-        viewport = new com.badlogic.gdx.utils.viewport.FitViewport(800, 480, camera);
+        camera       = new com.badlogic.gdx.graphics.OrthographicCamera();
+        viewport     = new StretchViewport(800, 480, camera);
+        overlayStage = new Stage(viewport, game.batch);
+        transition   = new TransitionOverlay();
+
+        fontLarge = new BitmapFont(); fontLarge.getData().setScale(2.8f);
+        fontSmall = new BitmapFont(); fontSmall.getData().setScale(1.1f);
 
         idleTex = new Texture("MC/idle.png");
         runTex = new Texture("MC/run.png");
@@ -101,111 +120,93 @@ public class GameScreen implements Screen {
         enemyAnim.setPlayMode(Animation.PlayMode.LOOP);
 
         currentAnim = idleRightAnim;
+
+        // Tampilkan animasi "MULAI EKSPLORASI" saat masuk GameScreen
+        transition.show(overlayStage, fontLarge, fontSmall,
+            "EKSPLORASI", "Wave " + currentWave + " / " + maxWaves + "  —  Temukan musuhmu!",
+            new Color(0.4f, 0.85f, 1f, 1f), 1.0f, null);
     }
 
     @Override
     public void render(float delta) {
-        if (isTransitioning) return;
 
-        // ===== INPUT =====
-        boolean right = Gdx.input.isKeyPressed(Input.Keys.D);
-        boolean moving = right;
-        facingRight = true; // Force right facing as per sidescroller logic
+        // ═══ GAME LOGIC (diblokir saat transisi sedang berjalan) ═══════════
+        if (!isTransitioning) {
+            boolean moving = Gdx.input.isKeyPressed(Input.Keys.D);
 
-        float speed = 200 * delta;
+            // Movement — worldX naik, MC tetap di layar
+            if (moving) worldX += 200f * delta;
 
-        // ===== MOVEMENT =====
-        if (right) {
-            x += speed;
-        }
+            // State → Anim
+            Animation<TextureRegion> nextAnim = moving ? runRightAnim : idleRightAnim;
+            if (currentAnim != nextAnim) { stateTime = 0; currentAnim = nextAnim; }
 
-        // Calculate dynamic draw size based on current frame to keep aspect ratio
-        TextureRegion currentFrame = currentAnim.getKeyFrame(stateTime);
-        float drawWidth = currentFrame.getRegionWidth() / 4f;
-        float drawHeight = currentFrame.getRegionHeight() / 4f;
+            // Shoot
+            if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE))
+                bullets.add(new Bullet(bulletTexture, PLAYER_SCREEN_X, y, true));
+            for (int i = bullets.size - 1; i >= 0; i--) {
+                Bullet b = bullets.get(i); b.update(delta);
+                if (!b.isActive()) bullets.removeIndex(i);
+            }
 
-        TextureRegion enemyFrameTop = enemyAnim.getKeyFrame(stateTime);
-        float enemyDrawW = enemyFrameTop.getRegionWidth() / 4f;
-        float enemyDrawH = enemyFrameTop.getRegionHeight() / 4f;
+            // Collision check — trigger encounter animation then switch screen
+            float eSX = PLAYER_SCREEN_X + (encounterX - worldX);
+            TextureRegion fr  = currentAnim.getKeyFrame(stateTime);
+            float dw = fr.getRegionWidth() / 4f, dh = fr.getRegionHeight() / 4f;
+            TextureRegion ef  = enemyAnim.getKeyFrame(stateTime);
+            float ew = ef.getRegionWidth() / 4f, eh = ef.getRegionHeight() / 4f;
+            playerRect.set(PLAYER_SCREEN_X, y, dw, dh);
+            encounterRect.set(eSX, 100, ew, eh);
 
-        float bgOffset = (x - 100) * 0.5f; // calculate parallax offset
-        float visualEnemyX = encounterX - bgOffset;
-
-        playerRect.set(x, y, drawWidth, drawHeight);
-        encounterRect.set(visualEnemyX, 100, enemyDrawW, enemyDrawH);
-        
-        if (playerRect.overlaps(encounterRect)) {
-            isTransitioning = true;
-            game.setScreen(new BattleScreen(game, difficulty, currentWave, this));
-            return;
-        }
-
-        // ===== STATE → ANIM =====
-        Animation<TextureRegion> nextAnim;
-
-        if (moving) {
-            nextAnim = runRightAnim;
-        } else {
-            nextAnim = idleRightAnim;
-        }
-
-        // APPLY
-        if (currentAnim != nextAnim) {
-            stateTime = 0;
-            currentAnim = nextAnim;
-        }
-
-        // ===== SHOOT =====
-        if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
-            bullets.add(new Bullet(bulletTexture, x, y, facingRight));
-        }
-
-        for (int i = bullets.size - 1; i >= 0; i--) {
-            Bullet bullet = bullets.get(i);
-            bullet.update(delta);
-            if (!bullet.isActive()) {
-                bullets.removeIndex(i);
+            if (playerRect.overlaps(encounterRect)) {
+                isTransitioning = true;
+                transition.show(overlayStage, fontLarge, fontSmall,
+                    "ENCOUNTER!", "Wave " + currentWave + " — Bersiap tempur!",
+                    new Color(1f, 0.35f, 0.25f, 1f), 0.9f,
+                    () -> game.setScreen(new BattleScreen(game, difficulty, currentWave, this)));
             }
         }
 
-        // ===== RENDER =====
+        // Animasi karakter selalu berjalan (biar freeze di frame yg bagus)
         stateTime += delta;
-        TextureRegion frame = currentAnim.getKeyFrame(stateTime);
-        TextureRegion enemyFrame = enemyAnim.getKeyFrame(stateTime);
 
-        ScreenUtils.clear(0.2f, 0.5f, 0.8f, 1);
-
-        drawWidth = frame.getRegionWidth() / 4f;
-        drawHeight = frame.getRegionHeight() / 4f;
-
+        // ═══ RENDER (selalu, termasuk saat transisi) ════════════════════════
+        ScreenUtils.clear(0.12f, 0.12f, 0.18f, 1f);
         viewport.apply();
         game.batch.setProjectionMatrix(camera.combined);
         game.batch.begin();
-        
-        // Scrolling background logic (parallax effect)
-        float bgWidth = 800;
-        float bgHeight = 480;
-        float shift = bgOffset % bgWidth;
-        
-        game.batch.draw(bgTex, -shift, 0, bgWidth, bgHeight);
-        game.batch.draw(bgTex, bgWidth - shift, 0, bgWidth, bgHeight);
-        
-        float enemyDrawWBottom = enemyFrame.getRegionWidth() / 4f;
-        float enemyDrawHBottom = enemyFrame.getRegionHeight() / 4f;
-        
-        game.batch.draw(frame, x, y, drawWidth, drawHeight);
-        game.batch.draw(enemyFrame, visualEnemyX, 100, enemyDrawWBottom, enemyDrawHBottom);
 
-        for (Bullet bullet : bullets) {
-            bullet.draw(game.batch);
-        }
+        // Background parallax
+        float BG_W = 800f, BG_H = 480f;
+        float bgShift = (worldX * 0.5f) % BG_W;
+        game.batch.draw(bgTex, -bgShift,        0, BG_W, BG_H);
+        game.batch.draw(bgTex,  BG_W - bgShift, 0, BG_W, BG_H);
 
-        // DEBUG TEXT
-        font.draw(game.batch, "Find the enemy to start Wave " + currentWave + " / " + maxWaves + "!", 20, 70);
-        font.draw(game.batch, "X: " + x, 20, 50);
-        font.draw(game.batch, facingRight ? "RIGHT" : "LEFT", 20, 30);
+        // Musuh
+        TextureRegion enemyFrame = enemyAnim.getKeyFrame(stateTime);
+        float eScreenX = PLAYER_SCREEN_X + (encounterX - worldX);
+        game.batch.draw(enemyFrame, eScreenX, 100,
+            enemyFrame.getRegionWidth() / 4f, enemyFrame.getRegionHeight() / 4f);
+
+        // MC — selalu di PLAYER_SCREEN_X
+        TextureRegion playerFrame = currentAnim.getKeyFrame(stateTime);
+        game.batch.draw(playerFrame, PLAYER_SCREEN_X, y,
+            playerFrame.getRegionWidth() / 4f, playerFrame.getRegionHeight() / 4f);
+
+        // Bullets
+        for (Bullet b : bullets) b.draw(game.batch);
+
+        // HUD
+        font.draw(game.batch,
+            "Wave " + currentWave + "/" + maxWaves +
+            "  |  Jarak: " + Math.max(0, (int)(encounterX - worldX)) + "m",
+            16, 470);
 
         game.batch.end();
+
+        // ═══ OVERLAY — selalu di paling atas, selalu di-update ══════════════
+        overlayStage.act(delta);
+        overlayStage.draw();
     }
 
     @Override public void dispose() {
@@ -215,10 +216,15 @@ public class GameScreen implements Screen {
         bulletTexture.dispose();
         if (enemyTex != null) enemyTex.dispose();
         font.dispose();
+        if (fontLarge != null) fontLarge.dispose();
+        if (fontSmall != null) fontSmall.dispose();
+        if (transition != null) transition.dispose();
+        if (overlayStage != null) overlayStage.dispose();
     }
 
     @Override public void resize(int width, int height) {
         if (viewport != null) viewport.update(width, height, true);
+        if (overlayStage != null) overlayStage.getViewport().update(width, height, true);
     }
     @Override public void pause() {}
     @Override public void resume() {}

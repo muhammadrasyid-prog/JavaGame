@@ -64,6 +64,12 @@ public class Main extends Game {
         inventory.addXpAndCheckLevelUp(points);
     }
 
+    // 🔹 REWARD MONEY
+    public void addMoney(int amount) {
+        inventory.addMoneyCount(amount);
+    }
+
+
     @Override
     public void dispose() {
         batch.dispose(); // jangan lupa dispose

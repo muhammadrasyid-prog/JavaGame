@@ -20,7 +20,7 @@ public class DamagePopup {
         this.text = String.valueOf(damage);
         
         if (isCritical) {
-            this.text = "⚡ " + damage + " !!!";
+            this.text = "CRIT! " + damage + " !!!";
             this.color = Color.ORANGE;
         } else {
             this.color = Color.RED;

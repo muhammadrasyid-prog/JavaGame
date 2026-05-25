@@ -38,10 +38,10 @@ public class EnemyInfo {
         font.draw(batch, name, x + 10, nameY);
         
         font.setColor(Color.RED);
-        font.draw(batch, "❤ " + hp + "/" + maxHp, x + 10, hpY);
+        font.draw(batch, "HP: " + hp + "/" + maxHp, x + 10, hpY);
         
         font.setColor(Color.CYAN);
-        font.draw(batch, "🛡 " + armor, x + 10, armorY);
+        font.draw(batch, "DEF: " + armor, x + 10, armorY);
         
         font.setColor(Color.WHITE); // reset
     }

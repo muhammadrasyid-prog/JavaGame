@@ -1,9 +1,9 @@
 package io.github.jekjek.Entity;
 
-import io.github.jekjek.Skill.SkillEffect;
-
 import java.util.ArrayList;
 import java.util.List;
+
+import io.github.jekjek.Skill.SkillEffect;
 
 public abstract class Entity {
     protected String nama;
